@@ -37,7 +37,7 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Game States: 1 = Shooter, 2 = Moon Lander, 3 = Game Over, 4 = Victory
+    // Game States: 1 = Shooter, 2 = Moon Lander, 3 = Game Over, 4 = Level 1 Victory, 5 = Level 2 (Placeholder)
     let gameState = 1; 
 
     // --- INPUT HANDLING ---
@@ -45,15 +45,18 @@
     window.addEventListener("keydown", (e) => keys[e.code] = true);
     window.addEventListener("keyup", (e) => keys[e.code] = false);
 
-    // --- PHASE 1: SHOOTER VARIABLES ---
+
+    // =====================================================================
+    //                        START OF LEVEL 1 
+    // =====================================================================
+
+    // --- LEVEL 1 VARIABLES ---
     const player = {
         x: 375, y: 500, width: 50, height: 80, speed: 5, color: "blue",
-        cooldown: 0 // Prevents spam shooting
-        // TO ADD YOUR IMAGE:
-        player.img.src = 't.png';
-        // img: new Image(),
-        // (Set player.img.src = 'your_image.jpg' outside this object)
+        cooldown: 0,
+        img: new Image()
     };
+    player.img.src = 't.png'; 
 
     let bullets = [];
     let enemyBullets = [];
@@ -67,7 +70,6 @@
         });
     }
 
-    // --- PHASE 2: MOON LANDER VARIABLES ---
     const rocket = {
         x: 375, y: 500, width: 30, height: 60,
         dx: 0, dy: 0, thrust: 0.1, gravity: 0.05
@@ -77,9 +79,7 @@
         x: 400, y: 100, radius: 60
     };
 
-    // --- CORE FUNCTIONS ---
-
-    // Simple collision detection
+    // --- UTILITY FUNCTION ---
     function checkCollision(rect1, rect2) {
         return rect1.x < rect2.x + rect2.width &&
                rect1.x + rect1.width > rect2.x &&
@@ -87,20 +87,17 @@
                rect1.y + rect1.height > rect2.y;
     }
 
-    // Phase 1 Logic
+    // --- LEVEL 1 LOGIC & DRAWING ---
     function updatePhase1() {
-        // Player Movement
         if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
         if (keys["ArrowRight"] && player.x + player.width < canvas.width) player.x += player.speed;
 
-        // Player Shooting
         if (keys["Space"] && player.cooldown <= 0) {
             bullets.push({ x: player.x + player.width/2 - 5, y: player.y, width: 10, height: 20, speed: 7 });
-            player.cooldown = 20; // Frames until next shot
+            player.cooldown = 20;
         }
         if (player.cooldown > 0) player.cooldown--;
 
-        // Update Bullets
         bullets.forEach((b, index) => {
             b.y -= b.speed;
             if (b.y < 0) bullets.splice(index, 1);
@@ -109,28 +106,19 @@
         enemyBullets.forEach((eb, index) => {
             eb.y += eb.speed;
             if (eb.y > canvas.height) enemyBullets.splice(index, 1);
-            
-            // Check if player gets hit
             if (checkCollision(eb, player)) {
                 gameState = 3; // Game Over
             }
         });
 
-        // Update Satellites
         satellites.forEach((sat, sIndex) => {
             sat.x += sat.speed * sat.direction;
-            
-            // Bounce off walls
             if (sat.x <= 0 || sat.x + sat.width >= canvas.width) {
                 sat.direction *= -1;
             }
-
-            // Randomly shoot back
             if (Math.random() < 0.01) {
                 enemyBullets.push({ x: sat.x + sat.width/2 - 5, y: sat.y + sat.height, width: 10, height: 10, speed: 4 });
             }
-
-            // Check if satellite is hit
             bullets.forEach((b, bIndex) => {
                 if (checkCollision(b, sat)) {
                     satellites.splice(sIndex, 1);
@@ -139,39 +127,28 @@
             });
         });
 
-        // Win Phase 1 Condition
         if (satellites.length === 0) {
-            gameState = 2; // Move to Moon Lander phase
-            canvas.style.backgroundColor = "#000022"; // Change sky to space
+            gameState = 2; 
+            canvas.style.backgroundColor = "#000022"; 
         }
     }
 
     function drawPhase1() {
-        // Draw Player (Replace fillRect with ctx.drawImage to use your generated cartoon)
+        // Note: Using the image, falls back to blue box if image fails to load
         ctx.fillStyle = player.color;
         ctx.fillRect(player.x, player.y, player.width, player.height);
-        
-        // Example of how to draw an image instead:
-        // ctx.drawImage(player.img, player.x, player.y, player.width, player.height);
+        try { ctx.drawImage(player.img, player.x, player.y, player.width, player.height); } catch(e){}
 
-        // Draw Bullets
         ctx.fillStyle = "yellow";
         bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
-
         ctx.fillStyle = "red";
         enemyBullets.forEach(eb => ctx.fillRect(eb.x, eb.y, eb.width, eb.height));
-
-        // Draw Satellites
         ctx.fillStyle = "gray";
         satellites.forEach(sat => ctx.fillRect(sat.x, sat.y, sat.width, sat.height));
     }
 
-    // Phase 2 Logic
     function updatePhase2() {
-        // Apply Physics
         rocket.dy += rocket.gravity;
-
-        // Thrust and Trajectory
         if (keys["ArrowUp"]) rocket.dy -= rocket.thrust * 2;
         if (keys["ArrowLeft"]) rocket.dx -= rocket.thrust;
         if (keys["ArrowRight"]) rocket.dx += rocket.thrust;
@@ -179,35 +156,30 @@
         rocket.x += rocket.dx;
         rocket.y += rocket.dy;
 
-        // Collision with walls (Game Over)
         if (rocket.x < 0 || rocket.x > canvas.width || rocket.y > canvas.height) {
             gameState = 3; 
         }
 
-        // Collision with Moon (Victory)
         let dist = Math.hypot(rocket.x + rocket.width/2 - moon.x, rocket.y - moon.y);
         if (dist < moon.radius + rocket.height/2) {
-            // Check if landing was soft enough
             if (rocket.dy < 2) {
-                gameState = 4; // Win!
+                // TO GO TO LEVEL 2: Change this from 4 (Victory) to 5 (Level 2)
+                gameState = 4; // Currently goes to victory screen
             } else {
-                gameState = 3; // Crashed too hard
+                gameState = 3; 
             }
         }
     }
 
     function drawPhase2() {
-        // Draw Moon
         ctx.fillStyle = "lightgray";
         ctx.beginPath();
         ctx.arc(moon.x, moon.y, moon.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Draw Rocket
         ctx.fillStyle = "white";
         ctx.fillRect(rocket.x, rocket.y, rocket.width, rocket.height);
         
-        // Draw rocket engine flame if thrusting
         if (keys["ArrowUp"]) {
             ctx.fillStyle = "orange";
             ctx.beginPath();
@@ -218,10 +190,39 @@
         }
     }
 
+    // =====================================================================
+    //                         END OF LEVEL 1
+    // =====================================================================
+
+
+    // =====================================================================
+    //                 START OF LEVEL 2 (ADD YOUR CODE HERE)
+    // =====================================================================
+
+    // 1. ADD LEVEL 2 VARIABLES HERE
+    // let level2Enemies = [];
+    // let level2Boss = { ... };
+
+    // 2. ADD LEVEL 2 LOGIC FUNCTION HERE
+    function updateLevel2() {
+        // Add movement, collisions, and logic for Level 2
+    }
+
+    // 3. ADD LEVEL 2 DRAWING FUNCTION HERE
+    function drawLevel2() {
+        // Add drawing code for Level 2 elements
+    }
+
+    // =====================================================================
+    //                         END OF LEVEL 2
+    // =====================================================================
+
+
     // --- MAIN GAME LOOP ---
     function gameLoop() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // --- LEVEL 1 FLOW ---
         if (gameState === 1) {
             updatePhase1();
             drawPhase1();
@@ -230,6 +231,15 @@
             updatePhase2();
             drawPhase2();
         }
+
+        // --- LEVEL 2 FLOW (SPACE ALLOCATED HERE) ---
+        else if (gameState === 5) {
+            // Uncomment these when you write Level 2!
+            // updateLevel2();
+            // drawLevel2();
+        }
+
+        // --- GAME OVER & VICTORY SCREENS ---
         else if (gameState === 3) {
             ctx.fillStyle = "red";
             ctx.font = "50px Arial";
@@ -240,7 +250,8 @@
         else if (gameState === 4) {
             ctx.fillStyle = "green";
             ctx.font = "50px Arial";
-            ctx.fillText("MISSION ACCOMPLISHED!", canvas.width/2 - 300, canvas.height/2);
+            ctx.fillText("LEVEL 1 COMPLETE!", canvas.width/2 - 250, canvas.height/2);
+            // Hint: Add a button or timer here to transition to gameState = 5 (Level 2)
         }
 
         requestAnimationFrame(gameLoop);
