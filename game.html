@@ -23,6 +23,14 @@
             box-shadow: 0 0 10px rgba(0,0,0,1);
         }
 
+        /* NEW: Start Screen Overlay */
+        #startScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #2c3e50; z-index: 30; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer; text-align: center; padding: 20px; box-sizing: border-box;
+        }
+
         #uiLayer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: none; flex-direction: column; justify-content: center; align-items: center;
@@ -53,19 +61,25 @@
 
         #rotateScreen {
             display: none; position: absolute; top:0; left:0; width: 100%; height: 100%;
-            background: #2c3e50; z-index: 20; justify-content: center; align-items: center;
+            background: #2c3e50; z-index: 40; justify-content: center; align-items: center;
             text-align: center; padding: 20px; box-sizing: border-box; font-size: 1.5em;
         }
 
         @media (max-width: 768px) { #mobileControls { display: flex; } }
         @media (orientation: portrait) and (max-width: 768px) {
-            #rotateScreen { display: flex; } #gameWrapper { display: none; }
+            #rotateScreen { display: flex; } 
+            #gameWrapper, #startScreen { display: none; }
         }
     </style>
 </head>
 <body>
 
     <div id="rotateScreen">Please rotate your phone sideways (Landscape) to play!</div>
+
+    <div id="startScreen">
+        <h1>SATELLITE SHOOTER</h1>
+        <p style="color: #2ecc71; font-size: 1.5em; margin-top: 20px;">Tap anywhere to Start & go Fullscreen</p>
+    </div>
 
     <div id="gameWrapper">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
@@ -86,6 +100,23 @@
     </div>
 
 <script>
+    // --- FULLSCREEN & START LOGIC ---
+    const startScreen = document.getElementById("startScreen");
+    startScreen.addEventListener("click", () => {
+        const docElm = document.documentElement;
+        if (docElm.requestFullscreen) {
+            docElm.requestFullscreen();
+        } else if (docElm.webkitRequestFullscreen) { /* Safari */
+            docElm.webkitRequestFullscreen();
+        } else if (docElm.msRequestFullscreen) { /* IE11 */
+            docElm.msRequestFullscreen();
+        }
+        startScreen.style.display = "none";
+        // Initialize game right after full screen is triggered
+        initLevel1();
+        gameLoop();
+    });
+
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const uiLayer = document.getElementById("uiLayer");
@@ -93,7 +124,7 @@
     const btnRestart = document.getElementById("btnRestart");
     const btnNextLevel = document.getElementById("btnNextLevel");
 
-    let gameState = 1; 
+    let gameState = 0; // Start at 0 so it doesn't run before tap
 
     // --- INPUT HANDLING ---
     const keys = {};
@@ -124,6 +155,7 @@
         btnRestart.style.display = "none";
         btnNextLevel.style.display = "none";
         document.getElementById("btnAction").innerText = "FIRE";
+        document.getElementById("btnAction").style.opacity = "1";
 
         player = { x: 375, y: 500, width: 50, height: 80, speed: 5, color: "blue", cooldown: 0 };
         bullets = []; enemyBullets = []; satellites = [];
@@ -137,16 +169,15 @@
 
         // Rocket reset for Angry Birds phase
         rocket = { 
-            x: 50, y: 500, width: 30, height: 60, // Start bottom left
+            x: 50, y: 500, width: 30, height: 60,
             vx: 0, vy: 0, gravity: 0.2, 
-            angle: -Math.PI / 4, // Points up and right (45 degrees)
+            angle: -Math.PI / 4, 
             power: 0, maxPower: 28, 
             isLaunched: false, wasActionPressed: false
         };
-        moon = { x: 700, y: 150, radius: 55 }; // Target top right
+        moon = { x: 700, y: 150, radius: 55 }; 
     }
 
-    initLevel1();
     function resetLevel1() { initLevel1(); }
 
     function checkCollision(rect1, rect2) {
@@ -192,7 +223,6 @@
             gameState = 2; 
             canvas.style.backgroundColor = "#000022"; 
             document.getElementById("btnAction").innerText = "HOLD"; 
-            // Important: clear action key so it doesn't instantly charge rocket power
             keys["Space"] = false; keys["ArrowUp"] = false;
         }
     }
@@ -216,44 +246,36 @@
     // --- PHASE 2 (ANGRY BIRDS STYLE LAUNCH) ---
     function updatePhase2() {
         if (!rocket.isLaunched) {
-            // Aiming
             if (keys["ArrowLeft"]) rocket.angle -= 0.05;
             if (keys["ArrowRight"]) rocket.angle += 0.05;
 
-            // Restrict aim between pointing straight UP and straight RIGHT
             if (rocket.angle < -Math.PI) rocket.angle = -Math.PI; 
             if (rocket.angle > 0) rocket.angle = 0; 
 
-            // Charging Power
             let actionPressed = keys["Space"] || keys["ArrowUp"];
             
             if (actionPressed) {
                 rocket.power += 0.4;
                 if (rocket.power > rocket.maxPower) rocket.power = rocket.maxPower;
             } else if (rocket.wasActionPressed && !actionPressed) {
-                // Launch on Release
                 rocket.isLaunched = true;
                 rocket.vx = Math.cos(rocket.angle) * rocket.power;
                 rocket.vy = Math.sin(rocket.angle) * rocket.power;
-                document.getElementById("btnAction").style.opacity = "0.5"; // Dim button
+                document.getElementById("btnAction").style.opacity = "0.5"; 
             }
             rocket.wasActionPressed = actionPressed;
 
         } else {
-            // Flight Physics
             rocket.vy += rocket.gravity;
             rocket.x += rocket.vx;
             rocket.y += rocket.vy;
             
-            // Adjust rocket angle to match its trajectory path
             rocket.angle = Math.atan2(rocket.vy, rocket.vx);
 
-            // Bounds Check (Loss)
             if (rocket.x > canvas.width || rocket.y > canvas.height || rocket.x < 0) {
                 triggerGameOver("Missed the Moon! Try adjusting angle and power.");
             }
 
-            // Moon Check (Win) - Calculate distance between rocket center and moon center
             let dist = Math.hypot((rocket.x + rocket.width/2) - moon.x, (rocket.y + rocket.height/2) - moon.y);
             if (dist < moon.radius + rocket.height/2) {
                 triggerVictory();
@@ -262,20 +284,16 @@
     }
 
     function drawPhase2() {
-        // Draw Moon
         ctx.font = "110px Arial";
         ctx.fillText("🌕", moon.x - 55, moon.y + 40);
 
-        // Draw the Rocket (Rotated to match angle)
         ctx.save();
         ctx.translate(rocket.x + rocket.width/2, rocket.y + rocket.height/2);
-        // Add Math.PI/2 (90 degrees) because the drawn rectangle faces up naturally, not right
         ctx.rotate(rocket.angle + Math.PI/2); 
         
         ctx.fillStyle = "white";
         ctx.fillRect(-rocket.width/2, -rocket.height/2, rocket.width, rocket.height);
         
-        // Draw rocket flame if flying
         if (rocket.isLaunched) {
             ctx.fillStyle = "orange";
             ctx.beginPath();
@@ -286,9 +304,7 @@
         }
         ctx.restore();
 
-        // UI details while aiming
         if (!rocket.isLaunched) {
-            // Dotted Trajectory Line
             ctx.beginPath();
             ctx.setLineDash([5, 10]);
             ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
@@ -297,15 +313,12 @@
             ctx.lineTo(rocket.x + rocket.width/2 + Math.cos(rocket.angle) * 150, 
                        rocket.y + rocket.height/2 + Math.sin(rocket.angle) * 150);
             ctx.stroke();
-            ctx.setLineDash([]); // Reset for other drawings
+            ctx.setLineDash([]); 
 
-            // Power Meter Background
             ctx.fillStyle = "white"; ctx.font = "20px Arial"; ctx.fillText("POWER", 20, 40);
             ctx.strokeStyle = "white"; ctx.strokeRect(20, 50, 200, 25);
-            // Power Meter Fill
             ctx.fillStyle = "red"; ctx.fillRect(20, 50, (rocket.power / rocket.maxPower) * 200, 25);
 
-            // Instructions text
             ctx.fillStyle = "rgba(255,255,255,0.7)";
             ctx.font = "18px Arial";
             ctx.fillText("Tap Left/Right to aim. HOLD Fire to charge power. RELEASE to launch!", 100, 580);
@@ -335,6 +348,8 @@
 
     // --- MAIN GAME LOOP ---
     function gameLoop() {
+        if (gameState === 0) return; // Wait for start screen
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         if (gameState === 1) { updatePhase1(); drawPhase1(); } 
@@ -344,7 +359,9 @@
         requestAnimationFrame(gameLoop);
     }
 
-    gameLoop();
+    // Game loop no longer starts automatically at the bottom!
+    // It waits for the Start Screen click event.
+
 </script>
 </body>
 </html>
