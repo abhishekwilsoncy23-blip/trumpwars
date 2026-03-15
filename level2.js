@@ -44,8 +44,9 @@ const Level2 = (function() {
         },
 
         update: function() {
-            if (keys["ArrowLeft"]) { trumpPlayer.aimAngle -= 0.04; }
-            if (keys["ArrowRight"]) { trumpPlayer.aimAngle += 0.04; }
+            // ---> REDUCED SENSITIVITY HERE (Changed 0.04 to 0.015) <---
+            if (keys["ArrowLeft"]) { trumpPlayer.aimAngle -= 0.015; }
+            if (keys["ArrowRight"]) { trumpPlayer.aimAngle += 0.015; }
 
             if (trumpPlayer.aimAngle < -Math.PI + 0.15) trumpPlayer.aimAngle = -Math.PI + 0.15;
             if (trumpPlayer.aimAngle > -0.15) trumpPlayer.aimAngle = -0.15;
@@ -90,7 +91,6 @@ const Level2 = (function() {
             wallBricks.forEach(brick => { if (brick.active && !brick.isBomb) safeBricksLeft++; });
 
             if (safeBricksLeft === 0) {
-                // If you build a Level 3, replace 'null' with 'Level3'
                 triggerVictory("THE WALL HAS FALLEN!<br>You mastered the mirrors!", null); 
             }
         },
