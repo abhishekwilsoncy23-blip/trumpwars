@@ -348,12 +348,10 @@
         document.getElementById("btnAction").style.opacity = "1";
         keys["Space"] = false; keys["ArrowUp"] = false;
 
-        // Player is now a stationary aiming cannon
         trumpPlayer = { x: 375, y: 500, width: 50, height: 80, aimAngle: -Math.PI / 2, cooldown: 0 };
         level2Bullets = [];
         wallBricks = [];
 
-        // Generate wall. Adjusted to account for the mirrors on the sides
         let rows = 4;
         let cols = 10;
         let usableWidth = canvas.width - (mirrorWidth * 2);
@@ -364,11 +362,11 @@
             for(let c = 0; c < cols; c++) {
                 let isBomb = false;
                 
-                // Force "No Direct Shots": The bottom row, directly above player, is entirely bombs
-                if (r === rows - 1 && c >= 3 && c <= 6) {
+                // Forgiving update: only block columns 4 and 5 with solid bombs instead of 3 through 6
+                if (r === rows - 1 && c >= 4 && c <= 5) {
                     isBomb = true;
                 } else {
-                    isBomb = Math.random() < 0.15; 
+                    isBomb = Math.random() < 0.05; // Forgiving update: dropped from 15% to 5% random bombs
                 }
                 
                 wallBricks.push({ 
@@ -384,25 +382,25 @@
     }
 
     function updateLevel2() {
-        // Aiming Logic (Replaces moving)
+        // Aiming Logic
         if (keys["ArrowLeft"]) { trumpPlayer.aimAngle -= 0.04; }
         if (keys["ArrowRight"]) { trumpPlayer.aimAngle += 0.04; }
 
-        // Prevent aiming too low (clamp angle)
+        // Prevent aiming too low
         if (trumpPlayer.aimAngle < -Math.PI + 0.15) trumpPlayer.aimAngle = -Math.PI + 0.15;
         if (trumpPlayer.aimAngle > -0.15) trumpPlayer.aimAngle = -0.15;
 
-        // Shooting mechanism with angles
+        // Shooting mechanism (Forgiving update: cooldown reduced from 20 to 12)
         if (keys["Space"] && trumpPlayer.cooldown <= 0) {
             let bulletSpeed = 8;
             level2Bullets.push({ 
                 x: trumpPlayer.x + trumpPlayer.width/2 - 5, 
                 y: trumpPlayer.y, 
-                width: 10, height: 10, // Square bullet for better bouncing physics
+                width: 10, height: 10, 
                 vx: Math.cos(trumpPlayer.aimAngle) * bulletSpeed,
                 vy: Math.sin(trumpPlayer.aimAngle) * bulletSpeed
             });
-            trumpPlayer.cooldown = 20;
+            trumpPlayer.cooldown = 12;
         }
         if (trumpPlayer.cooldown > 0) trumpPlayer.cooldown--;
 
@@ -437,7 +435,7 @@
 
             wallBricks.forEach(brick => {
                 if (brick.active && checkCollision(b, brick)) {
-                    level2Bullets.splice(bIndex, 1); // Bullet destroyed on impact
+                    level2Bullets.splice(bIndex, 1); // Destroy bullet
                     
                     if (brick.isBomb) {
                         triggerGameOver("You shot a BOMB! The wall exploded.", initLevel2);
@@ -459,11 +457,11 @@
 
     function drawLevel2() {
         // Draw Mirrors
-        ctx.fillStyle = "#00FFFF"; // Cyan glowing mirrors
+        ctx.fillStyle = "#00FFFF";
         ctx.fillRect(0, 0, mirrorWidth, canvas.height);
         ctx.fillRect(canvas.width - mirrorWidth, 0, mirrorWidth, canvas.height);
         
-        // Draw Trump Player (Stationary)
+        // Draw Player
         ctx.fillStyle = "blue"; 
         ctx.fillRect(trumpPlayer.x, trumpPlayer.y, trumpPlayer.width, trumpPlayer.height);
         try { 
@@ -472,17 +470,50 @@
             }
         } catch(e){}
 
-        // Draw Aiming Line
+        // --- PREDICTIVE BOUNCE AIMING LINE ---
+        let startX = trumpPlayer.x + trumpPlayer.width / 2;
+        let startY = trumpPlayer.y;
+        let vx = Math.cos(trumpPlayer.aimAngle);
+        let vy = Math.sin(trumpPlayer.aimAngle); // This is always negative (going up)
+
+        // Calculate time to hit side mirrors vs ceiling
+        let t_mirror;
+        if (vx < 0) {
+            t_mirror = (mirrorWidth - startX) / vx; // Going left
+        } else {
+            t_mirror = (canvas.width - mirrorWidth - startX) / vx; // Going right
+        }
+        let t_ceil = (0 - startY) / vy; // Going up to y=0
+
         ctx.beginPath();
         ctx.setLineDash([5, 5]);
         ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
         ctx.lineWidth = 2;
-        let startX = trumpPlayer.x + trumpPlayer.width / 2;
-        let startY = trumpPlayer.y;
         ctx.moveTo(startX, startY);
-        ctx.lineTo(startX + Math.cos(trumpPlayer.aimAngle) * 120, startY + Math.sin(trumpPlayer.aimAngle) * 120);
+
+        let hitX, hitY;
+        
+        // If it hits a side mirror before hitting the ceiling
+        if (Math.abs(t_mirror) < Math.abs(t_ceil)) {
+            hitX = startX + vx * t_mirror;
+            hitY = startY + vy * t_mirror;
+            ctx.lineTo(hitX, hitY); // Draw line to mirror
+            
+            // Draw the reflected line going towards the ceiling
+            let remaining_dy = 0 - hitY;
+            let t_ceil_after_bounce = remaining_dy / vy;
+            let finalX = hitX + (-vx) * t_ceil_after_bounce; // Reverse the X velocity
+            
+            ctx.lineTo(finalX, 0); // Draw reflected line to the ceiling
+        } else {
+            // It hits the ceiling directly without bouncing off walls first
+            hitX = startX + vx * t_ceil;
+            ctx.lineTo(hitX, 0);
+        }
+        
         ctx.stroke();
         ctx.setLineDash([]);
+        // -------------------------------------
 
         // Draw Bullets
         ctx.fillStyle = "yellow"; 
@@ -492,7 +523,7 @@
             ctx.fill();
         });
 
-        // Draw the Wall (Bricks and Bombs)
+        // Draw Wall
         wallBricks.forEach(brick => {
             if (brick.active) {
                 if (brick.isBomb) {
