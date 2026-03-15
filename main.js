@@ -7,7 +7,7 @@ const mainMenu = document.getElementById("mainMenu");
 
 let currentLevel = null;
 let animationId;
-let keys = {};
+window.keys = {};
 
 // Load your generic player image here (make sure t.png is in your folder)
 let playerImg = new Image();
